@@ -70,7 +70,7 @@ def get_term(ith):
 sample_size = c2.slider('Sample size', min_value=1, max_value=1000, value=25)
 d1, d2 = st.columns(2)
 temperature = d1.slider('Temperature', min_value=0.01, max_value=5.0, value=0.5)
-noise = d2.slider('Noise', min_value=0.000, max_value=0.010, value=0.005, step = 1e-4)
+noise = d2.slider('Noise', min_value=0.000, max_value=0.25, value=0.05, step = 1e-4)
 
 e1, e2 = st.columns([1,3])
 is_dynamic = e1.checkbox('Dynamic', value = False, disabled=True)

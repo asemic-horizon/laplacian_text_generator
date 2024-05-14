@@ -6,21 +6,26 @@ import random
 import joblib
 mem = joblib.Memory(location='.', verbose=0)
 
+def split_in_nchars(txt, nchars):
+    """This function splits a string in contiguous strings of nchars
+    e.g. split_in_nchars("hello world",3) -> ['hel', 'llo", " wo", "rld']"""
+    return [txt[i:i+nchars] for i in range(0, len(txt), nchars)]
+
 @st.cache_resource
-def generate_ngram_edges(file_path, n=1):
+def generate_ngram_edges(file_path, n=3):
     # Read the text file
     with open(file_path, 'r', encoding='utf-8') as file:
         text = file.read()
 
     # Normalize text and split into words
-    words = text[:500_000].split(' ')
-
+    words = text[:1_000_000]
+    words = split_in_nchars(words, n)
     # Generate edges
     edges = []
     for i in range(len(words) - n + 1):
         if i + n < len(words):
-            first_ngram = ' '.join(words[i:i+n])
-            second_ngram = ' '.join(words[i+1:i+n+1])
+            first_ngram = ''.join(words[i:i+n])
+            second_ngram = ''.join(words[i+1:i+n+1])
             edge = (first_ngram,second_ngram)
             edges.append(edge)
 
@@ -44,9 +49,13 @@ def softmax(x, temperature):
     return np.exp(x / temperature) / (np.exp(x / temperature).sum())
 
 if st.session_state.get('edges') is None:
-    st.session_state['edges'] = generate_ngram_edges('atp.txt', n=1)
+    with st.spinner("Generating graph"):
+        st.session_state['edges'] = generate_ngram_edges(
+            'atp.txt', 
+            n=8)
 if st.session_state.get('laplacian') is None:
-    G, L = make_graph(st.session_state['edges'])
+    with st.spinner("Computing laplacian matrix"):
+        G, L = make_graph(st.session_state['edges'])
     st.session_state['graph'] = G
     st.session_state['laplacian'] = L
     term_list = list(G.nodes())
@@ -67,10 +76,10 @@ def get_code(term):
 def get_term(ith):
     return [v for u, v in enumerate(st.session_state['graph'].nodes()) if u == ith]
 
-sample_size = c2.slider('Sample size', min_value=1, max_value=1000, value=25)
+sample_size = c2.slider('Sample size', min_value=1, max_value=1000, value=75)
 d1, d2 = st.columns(2)
 temperature = d1.slider('Temperature', min_value=0.01, max_value=5.0, value=0.5)
-noise = d2.slider('Noise', min_value=0.000, max_value=0.25, value=0.05, step = 1e-4)
+noise = d2.slider('Noise', min_value=0.000, max_value=0.1, value=0.01, step = 1e-4)
 
 e1, e2 = st.columns([1,3])
 is_dynamic = e1.checkbox('Dynamic', value = False, disabled=True)
@@ -89,9 +98,10 @@ if is_dynamic:
         jth = np.random.choice(range(st.session_state['N']), p = w.flatten())
 else:
     ith = get_code(term)
-    w = solve_for_ith(st.session_state['laplacian'], ith, noise)
-    w = softmax(w, temperature)
-    sample = np.random.choice(st.session_state['graph'].nodes(), size=sample_size, p = w)
+    with st.spinner("Computing sample"):
+        w = solve_for_ith(st.session_state['laplacian'], ith, noise)
+        w = softmax(w, temperature)
+        sample = np.random.choice(st.session_state['graph'].nodes(), size=sample_size, p = w)
 st.write(f"{' '.join(sample)}")
 st.write("---")
 st.caption("FIND ME and follow me through corridors, refectories; to find, you must follow write the electric me on gmailee. ")

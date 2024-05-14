@@ -71,7 +71,7 @@ temperature = d1.slider('Temperature', min_value=0.01, max_value=5.0, value=0.5)
 noise = d2.slider('Noise', min_value=0.0, max_value=1e-2, value=0.005, step = 1e-4)
 
 e1, e2 = st.columns([1,3])
-is_dynamic = e1.checkbox('Dynamic', value = False)
+is_dynamic = e1.checkbox('Dynamic', value = False, disabled=True)
 e2.caption("WARNING! Dynamic mode is expensive to compute, slow to report; responds to temperature differently")
 if is_dynamic:
     sample = []
@@ -82,7 +82,7 @@ if is_dynamic:
         w = lsqr(st.session_state['laplacian'], v1)[0]
         w = softmax(w, temperature)
         jsample = get_term(jth)
-        sample.append(jsample[0])
+        sample.append(jsample)
         print(jsample)
         jth = np.random.choice(range(st.session_state['N']), p = w.flatten())
 else:

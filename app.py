@@ -102,6 +102,6 @@ else:
         w = solve_for_ith(st.session_state['laplacian'], ith, noise)
         w = softmax(w, temperature)
         sample = np.random.choice(st.session_state['graph'].nodes(), size=sample_size, p = w)
-st.write(f"{' '.join(sample)}")
+st.write(f"{'r'.join(sample)}")
 st.write("---")
 st.caption("FIND ME and follow me through corridors, refectories; to find, you must follow write the electric me on gmailee. ")

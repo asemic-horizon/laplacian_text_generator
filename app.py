@@ -3,7 +3,8 @@ import pandas as pd, numpy as np
 import networkx as nx
 from scipy.sparse.linalg import lsqr
 import random
-
+import joblib
+mem = joblib.Memory(location='.', verbose=0)
 
 @st.cache_resource
 def generate_ngram_edges(file_path, n=1):
@@ -26,12 +27,13 @@ def generate_ngram_edges(file_path, n=1):
     return edges
 
 
-@st.cache_resource
+@mem.cache
 def make_graph(edges):
     G = nx.from_edgelist(edges)
     L = nx.laplacian_matrix(G)
     return G, L
 
+@mem.cache
 def solve_for_ith(laplacian, i, noise=1e-3):
     v1 = noise * np.ones(shape=(laplacian.shape[0],1))
     v1[i] = 1
@@ -68,7 +70,7 @@ def get_term(ith):
 sample_size = c2.slider('Sample size', min_value=1, max_value=1000, value=25)
 d1, d2 = st.columns(2)
 temperature = d1.slider('Temperature', min_value=0.01, max_value=5.0, value=0.5)
-noise = d2.slider('Noise', min_value=0.0, max_value=1e-2, value=0.005, step = 1e-4)
+noise = d2.slider('Noise', min_value=0.000, max_value=0.010, value=0.005, step = 1e-4)
 
 e1, e2 = st.columns([1,3])
 is_dynamic = e1.checkbox('Dynamic', value = False, disabled=True)

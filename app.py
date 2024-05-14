@@ -52,7 +52,7 @@ if st.session_state.get('edges') is None:
     with st.spinner("Generating graph"):
         st.session_state['edges'] = generate_ngram_edges(
             'atp.txt', 
-            n=8)
+            n=4)
 if st.session_state.get('laplacian') is None:
     with st.spinner("Computing laplacian matrix"):
         G, L = make_graph(st.session_state['edges'])

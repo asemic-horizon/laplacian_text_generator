@@ -12,7 +12,7 @@ def generate_ngram_edges(file_path, n=1):
         text = file.read()
 
     # Normalize text and split into words
-    words = text[:100_000].split(' ')
+    words = text.split(' ')
 
     # Generate edges
     edges = []

@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd, numpy as np
 import networkx as nx
-from scipy.sparse.linalg import lsqr
+from scipy.sparse.linalg import lsqr, csr_matrix
 import random
 import joblib
 mem = joblib.Memory(location='.', verbose=0)
@@ -36,7 +36,7 @@ def generate_ngram_edges(file_path, n=3):
 def make_graph(edges):
     G = nx.from_edgelist(edges)
     L = nx.laplacian_matrix(G)
-    return G, L
+    return G, csr_matrix(L)
 
 @mem.cache
 def solve_for_ith(laplacian, i, noise=1e-3):

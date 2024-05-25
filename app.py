@@ -3,12 +3,14 @@ import pandas as pd, numpy as np
 import networkx as nx
 import random
 import joblib
+import shutil
 import sampler
 from itertools import combinations
 
 mem = joblib.Memory(location='.', verbose=0)
-centrality = mem.cache(nx.betweenness_centrality)
 
+centrality = nx.betweenness_centrality
+sample_word = sampler.sample_ego_graph
 
 def split_in_nchars(txt, nchars):
     """This function splits a string in contiguous strings of nchars
@@ -29,7 +31,7 @@ def generate_ngram_edges(file_path, n=3):
     for line in lines:
        words = line.split(' ')
        edges += list(combinations(words, 2))
-       if len(edges) > 10_000:
+       if len(edges) > 5_000:
            break
     return edges
 
@@ -74,16 +76,15 @@ with st.form(key='my_form'):
     global_score = d4.checkbox('Global score', value=False)
     submit_button = st.form_submit_button(label='Answer me!')
 
-f1, f2, f3 = st.columns(3)
-f2.write(' '.join(term))
-term = sampler.closest_term(term, term_list)
-f2.write(' '.join(term))
-
-sample = [term]
 if submit_button:
+    f1, f2, f3 = st.columns(3)
+    f2.write(' '.join(term))
+    term = sampler.closest_term(term, term_list)
+    sample = [term]
     f2.write(f"{' '.join(term)}")
     while len(sample)<=sample_size:
-        next_term = sampler.sample_ego_graph(graph=G,
+        r = 1 if len(term) <=4 else radius
+        next_term = sample_word(graph=G,
                                             node=term,
                                             radius=radius,
                                             temperature=temperature,
@@ -93,6 +94,7 @@ if submit_button:
         f2.write(f"{' '.join(next_term)}")
         sample.append(next_term)
         term = next_term
+ 
 st.write("---")
 st.caption(
     "FIND ME and follow me through corridors, refectories; to find, you must follow write the electric me on gmailee. "

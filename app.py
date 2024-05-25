@@ -1,107 +1,99 @@
 import streamlit as st
 import pandas as pd, numpy as np
 import networkx as nx
-from scipy.sparse.linalg import lsqr, csr_matrix
 import random
 import joblib
+import sampler
+from itertools import combinations
+
 mem = joblib.Memory(location='.', verbose=0)
+centrality = mem.cache(nx.betweenness_centrality)
+
 
 def split_in_nchars(txt, nchars):
     """This function splits a string in contiguous strings of nchars
     e.g. split_in_nchars("hello world",3) -> ['hel', 'llo", " wo", "rld']"""
-    return [txt[i:i+nchars] for i in range(0, len(txt), nchars)]
+    return [txt[i:i + nchars] for i in range(0, len(txt), nchars)]
 
-@st.cache_resource
+
+@mem.cache
 def generate_ngram_edges(file_path, n=3):
     # Read the text file
     with open(file_path, 'r', encoding='utf-8') as file:
         text = file.read()
 
     # Normalize text and split into words
-    words = text[:1_000_000]
-    words = split_in_nchars(words, n)
-    # Generate edges
+    lines = text.split('\n')
+    random.shuffle(lines)
     edges = []
-    for i in range(len(words) - n + 1):
-        if i + n < len(words):
-            first_ngram = ''.join(words[i:i+n])
-            second_ngram = ''.join(words[i+1:i+n+1])
-            edge = (first_ngram,second_ngram)
-            edges.append(edge)
-
+    for line in lines:
+       words = line.split(' ')
+       edges += list(combinations(words, 2))
+       if len(edges) > 10_000:
+           break
     return edges
 
 
 @mem.cache
 def make_graph(edges):
     G = nx.from_edgelist(edges)
-    L = nx.laplacian_matrix(G)
-    return G, csr_matrix(L)
+    return G
 
-@mem.cache
-def solve_for_ith(laplacian, i, noise=1e-3):
-    v1 = noise * np.ones(shape=(laplacian.shape[0],1))
-    v1[i] = 1
-    w = lsqr(laplacian, v1)[0]
-    return w
-
-def softmax(x, temperature):
     return np.exp(x / temperature) / (np.exp(x / temperature).sum())
 
-if st.session_state.get('edges') is None:
-    with st.spinner("Generating graph"):
-        st.session_state['edges'] = generate_ngram_edges(
-            'atp.txt', 
-            n=4)
-if st.session_state.get('laplacian') is None:
-    with st.spinner("Computing laplacian matrix"):
-        G, L = make_graph(st.session_state['edges'])
-    st.session_state['graph'] = G
-    st.session_state['laplacian'] = L
-    term_list = list(G.nodes())
-    random.shuffle(term_list)
-    st.session_state['term_list'] = term_list
-    st.session_state['N'] = st.session_state['laplacian'].shape[0]
+explanation = "This text generator was conceived as an exploration of"
+explanation += " temperature sampling. In lieu of a fancy attention transformer"
+explanation += " model, it generates a graph from text by connecting all words"
+explanation += " that within a paragraph, thus allowing paragraphs with coinciding"
+explanation += " words to be connected to a second deegree."
+explanation += " A sampler then samples the next word"
+explanation += " so that words that appear in more than one paragraph are more likely"
+explanation += " to be sampled. The temperature parameter does what it does in"
+explanation += " large language models."
+with st.expander("Click for explanations. Maybe better don't.", expanded = False):
+    st.caption(explanation)
 
-c1, c2 = st.columns(2)
-term =  c1.selectbox(
-    label = 'Type something',
-    options = st.session_state['term_list'],
-    index = 200,
-    placeholder = 'Type something')
+with st.spinner("This computation will run only once, please wait."):
+    edges = generate_ngram_edges('atp.txt')
+    print(f'Number of edges: {len(edges)}')
+    G = make_graph(edges)
+term_list = list(G.nodes())
+random.shuffle(term_list)
 
-def get_code(term):
-    return [u for u, v in enumerate(st.session_state['graph'].nodes()) if v == term]
+with st.form(key='my_form'):
+    term = st.text_input(label='Type something',
+                        placeholder='something short is best')
 
-def get_term(ith):
-    return [v for u, v in enumerate(st.session_state['graph'].nodes()) if u == ith]
+    d1, d2, d3, d4 = st.columns(4)
+    sample_size = d3.slider('Sample size', min_value=1, max_value=1000, value=75)
+    temperature = d1.slider('Temperature',
+                            min_value=0.01,
+                            max_value=5.0,
+                            value=1.25)
+    radius = d2.slider('Radius', min_value=1, max_value=10, value=2)
+    global_score = d4.checkbox('Global score', value=False)
+    submit_button = st.form_submit_button(label='Answer me!')
 
-sample_size = c2.slider('Sample size', min_value=1, max_value=1000, value=75)
-d1, d2 = st.columns(2)
-temperature = d1.slider('Temperature', min_value=0.01, max_value=5.0, value=0.5)
-noise = d2.slider('Noise', min_value=0.000, max_value=0.1, value=0.01, step = 1e-4)
+f1, f2, f3 = st.columns(3)
+f2.write(' '.join(term))
+term = sampler.closest_term(term, term_list)
+f2.write(' '.join(term))
 
-e1, e2 = st.columns([1,3])
-is_dynamic = e1.checkbox('Dynamic', value = False, disabled=True)
-e2.caption("WARNING! Dynamic mode is expensive to compute, slow to report; responds to temperature differently")
-if is_dynamic:
-    sample = []
-    v1 = noise * np.ones(shape=(st.session_state.laplacian.shape[0],1))
-    jth = get_code(term)
-    for i in range(sample_size):
-        v1[jth] = 1
-        w = lsqr(st.session_state['laplacian'], v1)[0]
-        w = softmax(w, temperature)
-        jsample = get_term(jth)
-        sample.append(jsample)
-        print(jsample)
-        jth = np.random.choice(range(st.session_state['N']), p = w.flatten())
-else:
-    ith = get_code(term)
-    with st.spinner("Computing sample"):
-        w = solve_for_ith(st.session_state['laplacian'], ith, noise)
-        w = softmax(w, temperature)
-        sample = np.random.choice(st.session_state['graph'].nodes(), size=sample_size, p = w)
-st.write(f"{'r'.join(sample)}")
+sample = [term]
+if submit_button:
+    f2.write(f"{' '.join(term)}")
+    while len(sample)<=sample_size:
+        next_term = sampler.sample_ego_graph(graph=G,
+                                            node=term,
+                                            radius=radius,
+                                            temperature=temperature,
+                                            scoring_function=centrality,
+                                            global_score=global_score)
+        print(next_term)
+        f2.write(f"{' '.join(next_term)}")
+        sample.append(next_term)
+        term = next_term
 st.write("---")
-st.caption("FIND ME and follow me through corridors, refectories; to find, you must follow write the electric me on gmailee. ")
+st.caption(
+    "FIND ME and follow me through corridors, refectories; to find, you must follow write the electric me on gmailee. "
+)
